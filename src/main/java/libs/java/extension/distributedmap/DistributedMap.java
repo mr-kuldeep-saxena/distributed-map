@@ -4,64 +4,118 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-public abstract class DistributedMap<K, V> implements Map<String, V> {
+import libs.java.extension.distributedmap.redis.DistributedRedisMap;
+
+public abstract class DistributedMap<K, V> implements Map<K, V> {
 
 	protected Map<String, V> underlyingMap;
+	protected int localKeyLimit, size;
+	/**
+	 * Name for the map, used to associate key with redis
+	 */
+	protected String name;
 
-	public DistributedMap(Map<String, V> underlyingMap) {
+	public DistributedMap(String name, Map<String, V> underlyingMap, int localKeyLimit) {
 		if (underlyingMap == null) {
 			throw new IllegalStateException("Passed map can't be null");
 		}
+		this.localKeyLimit = localKeyLimit;
 		this.underlyingMap = underlyingMap;
+		this.name = name;
 	}
 
-	public void clear() {
+	public void clearLocal() {
 		underlyingMap.clear();
 	}
 
-	public boolean containsKey(Object key) {
+	public int sizeLocal() {
+		return underlyingMap.size();
+	}
+
+	public boolean containsKeyLocal(Object key) {
 		return underlyingMap.containsKey(key);
 
 	}
 
-	public boolean containsValue(Object value) {
+	public boolean containsValueLocal(Object value) {
 		return underlyingMap.containsValue(value);
 	}
 
-	public Set<java.util.Map.Entry<String, V>> entrySet() {
+	public Set<java.util.Map.Entry<String, V>> entrySetLocal() {
 		return underlyingMap.entrySet();
 	}
 
-	public V get(Object key) {
+	public V getLocal(Object key) {
 		return underlyingMap.get(key);
 	}
 
-	public boolean isEmpty() {
+	public boolean isEmptyLocal() {
 		return underlyingMap.isEmpty();
 	}
 
-	public Set<String> keySet() {
+	public Set<String> keySetLocal() {
 		return underlyingMap.keySet();
 	}
 
-	public V put(String key, V value) {
-		return underlyingMap.put(key, value);
+	/**
+	 * To-Do - Should contain logic to keep key limit value
+	 * 
+	 * @param key
+	 * @param value
+	 * @return
+	 */
+	public V putLocal(String key, V value) {
+
+		if (!containsKeyLocal(key)) {
+			if (size < localKeyLimit) {
+				size++;
+				return underlyingMap.put(String.valueOf(key), value);
+			}
+		} else {
+			return underlyingMap.put(String.valueOf(key), value);
+		}
+		return null;
+
 	}
 
-	public void putAll(Map<? extends String, ? extends V> m) {
+	public void putAllLocal(Map<? extends String, ? extends V> m) {
 		underlyingMap.putAll(m);
 	}
 
-	public V remove(Object key) {
-		return underlyingMap.remove(key);
+	public V removeLocal(Object key) {
+		V out = underlyingMap.remove(key);
+		if (out != null) {
+			size--;
+		}
+		return out;
 	}
 
-	public int size() {
-		return underlyingMap.size();
-	}
-
-	public Collection<V> values() {
+	public Collection<V> valuesLocal() {
 		return underlyingMap.values();
+	}
+
+	public static <V> Map<String, V> newMap(String mapName, Map<String, V> rootMap, int localKeyLimit, Class<V> type,
+			String host, int port) {
+		return newMap(mapName, rootMap, localKeyLimit, type, host, port, null);
+	}
+
+	public static <V> Map<String, V> newMap(String mapName, Map<String, V> rootMap, int localKeyLimit, Class<V> type,
+			String host, int port, String password) {
+		if (mapName == null || mapName.length() < 1) {
+			throw new IllegalStateException("Required map name is missing");
+		}
+		// if map name is already exist in redis, clear redis key to
+		// reinitialize, it would not overwrite
+
+		Map<String, V> map = new DistributedRedisMap<String, V>(mapName, rootMap, localKeyLimit, type, host, port,
+				password);
+
+		return map;
+	}
+
+	@Override
+	public String toString() {
+		return underlyingMap.toString();
 	}
 
 }
