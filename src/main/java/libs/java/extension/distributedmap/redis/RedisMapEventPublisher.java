@@ -9,11 +9,32 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 
 import redis.clients.jedis.Jedis;
 
+/**
+ * Event publisher for redis. It runs on a separate thread, which does not block
+ * caller/operation thread
+ * 
+ * @author Kuldeep
+ *
+ * @param <V>
+ *            value
+ */
 public class RedisMapEventPublisher<V> {
 
+	/**
+	 * Executor, not block caller
+	 */
 	private Executor ex = null;
+	/**
+	 * JSON data writer
+	 */
 	private ObjectWriter writer;
+	/**
+	 * Redis connection
+	 */
 	private Jedis publisher;
+	/**
+	 * Channel = map name, to identify event are for which map
+	 */
 	private String channel;
 
 	public RedisMapEventPublisher(String channel, Jedis publisher) {
@@ -24,6 +45,12 @@ public class RedisMapEventPublisher<V> {
 		this.channel = channel;
 	}
 
+	/**
+	 * Publish to redis
+	 * @param command command
+	 * @param key key
+	 * @param element data
+	 */
 	public void publish(RedisCommand command, String key, V element) {
 		if (command == null) {
 			return;
@@ -55,6 +82,11 @@ public class RedisMapEventPublisher<V> {
 		});
 	}
 
+	/**
+	 * Publish event to redis
+	 * @param command command
+	 * @param elements elements
+	 */
 	public void publishMultiple(RedisCommand command, Map<? extends String, ? extends V> elements) {
 		if (command == null) {
 			return;

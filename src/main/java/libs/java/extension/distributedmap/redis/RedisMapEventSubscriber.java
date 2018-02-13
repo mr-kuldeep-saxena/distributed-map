@@ -12,14 +12,50 @@ import libs.java.extension.distributedmap.DistributedMap;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPubSub;
 
+/**
+ * Listen for event from redis and updates local map. Call map in separate
+ * thread
+ * 
+ * @author Kuldeep
+ *
+ * @param <V>
+ *            value
+ */
 public class RedisMapEventSubscriber<V> extends JedisPubSub implements Runnable {
 
+	/**
+	 * Executor with single thread
+	 */
 	private Executor ex = null;
+	/**
+	 * Distributed map to update
+	 */
 	private DistributedMap<String, V> map;
+	/**
+	 * JSON reader
+	 */
 	private ObjectReader reader;
+	/**
+	 * Redis connection
+	 */
 	private Jedis subscriber;
+	/**
+	 * Channel/map name
+	 */
 	private String channel;
 
+	/**
+	 * Constructor
+	 * 
+	 * @param channel
+	 *            channel/mapname
+	 * @param map
+	 *            distributed map
+	 * @param type
+	 *            value type
+	 * @param subscriber
+	 *            redis connection
+	 */
 	public RedisMapEventSubscriber(String channel, DistributedMap<String, V> map, Class<V> type, Jedis subscriber) {
 		this.map = map;
 		ex = Executors.newFixedThreadPool(1);
@@ -30,6 +66,9 @@ public class RedisMapEventSubscriber<V> extends JedisPubSub implements Runnable 
 		this.channel = channel;
 	}
 
+	/**
+	 * Initializes subscriber
+	 */
 	public void init() {
 
 		Thread subscribe = new Thread(this);
@@ -38,16 +77,22 @@ public class RedisMapEventSubscriber<V> extends JedisPubSub implements Runnable 
 	}
 
 	/**
-	 * TO-DO ignore event generated from same map
-	 * @param channel channel id
-	 * @param message received message
+	 * 
+	 * Redis callback on publish event
+	 * 
+	 * TO-DO ignore event generated from same process, ignore for now, not that
+	 * much costly
+	 * 
+	 * @param channel
+	 *            channel/map name
+	 * @param message
+	 *            received message
 	 */
 	@Override
 	public void onMessage(String channel, String message) {
 		if (message == null) {
 			return;
 		}
-		System.out.println(message);
 		String result[] = message.split("<>");
 		if (result == null || result.length != 2) {
 			return;
@@ -86,8 +131,11 @@ public class RedisMapEventSubscriber<V> extends JedisPubSub implements Runnable 
 		}
 	}
 
-	
-
+	/**
+	 * Thread to update map on command
+	 * @author Kuldeep
+	 *
+	 */
 	private class SubscriberThread implements Runnable {
 
 		private RedisCommand command;
@@ -103,7 +151,7 @@ public class RedisMapEventSubscriber<V> extends JedisPubSub implements Runnable 
 		public void run() {
 			if (command == RedisCommand.PUT) {
 				for (String key : elements.keySet()) {
-					if (map.containsKey(key)) {
+					if (map.containsKeyLocal(key)) {
 						// update if contain same key with new value
 						map.putLocal(key, elements.get(key));
 					}
